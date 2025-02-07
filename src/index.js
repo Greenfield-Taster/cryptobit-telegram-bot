@@ -24,6 +24,29 @@ app.get("/", (req, res) => {
   res.send("API is running");
 });
 
+app.get("/api/db-test", async (req, res) => {
+  try {
+    // Проверяем состояние подключения
+    const state = mongoose.connection.readyState;
+    const states = {
+      0: "disconnected",
+      1: "connected",
+      2: "connecting",
+      3: "disconnecting",
+    };
+    res.json({
+      status: "success",
+      connection: states[state],
+      database: mongoose.connection.db.databaseName,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+});
+
 const telegramRoutes = require("./routes/telegramRoutes");
 app.use("/api", telegramRoutes);
 
