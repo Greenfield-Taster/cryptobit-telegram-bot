@@ -22,11 +22,8 @@ app.get("/", (req, res) => {
   res.send("API is running");
 });
 
-const telegramRoutes = require("./routes/telegramRoutes");
-app.use("/api", telegramRoutes);
-
-const TelegramBot = require("node-telegram-bot-api");
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: false });
+const exchangeRoutes = require("./routes/exchangeRoutes");
+app.use("/api", exchangeRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
