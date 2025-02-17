@@ -29,9 +29,9 @@ const exchangeRequestSchema = new mongoose.Schema({
     required: true,
   },
 
-  saveFromWallet: {
-    type: Boolean,
-    default: false,
+  orderId: {
+    type: String,
+    required: true,
   },
   saveToWallet: {
     type: Boolean,
