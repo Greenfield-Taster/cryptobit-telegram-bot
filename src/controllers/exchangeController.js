@@ -47,14 +47,14 @@ exports.createExchangeRequest = async (req, res) => {
       senderWallet: req.body.senderWallet,
       recipientWallet: req.body.recipientWallet,
       saveFromWallet: Boolean(req.body.saveFromWallet),
-      saveToWallet: Boolean(req.body.saveToWallet),
+      orderId: req.body.orderId,
     });
 
     await exchangeRequest.save();
     console.log("Заявка сохранена с ID:", exchangeRequest._id);
 
     const message = `
-<b>🔄 Новая заявка на обмен #${exchangeRequest._id}</b>
+<b>🔄 Новая заявка на обмен #${exchangeRequest.orderId}</b>
 
 📤 <b>Отправляет:</b> ${exchangeRequest.fromCrypto}
 📥 <b>Получает:</b> ${exchangeRequest.toCrypto}
@@ -63,9 +63,6 @@ exports.createExchangeRequest = async (req, res) => {
 
 🔹 <b>Кошелек отправителя:</b> 
 <code>${exchangeRequest.senderWallet}</code>
-
-🔸 <b>Кошелек получателя:</b> 
-<code>${exchangeRequest.recipientWallet}</code>
 
 ✅ Сохранить кошельки: ${exchangeRequest.saveFromWallet ? "✓" : "✗"} / ${
       exchangeRequest.saveToWallet ? "✓" : "✗"
