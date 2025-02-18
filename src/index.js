@@ -23,7 +23,10 @@ app.get("/", (req, res) => {
 });
 
 const exchangeRoutes = require("./routes/exchangeRoutes");
+const authRoutes = require("./routes/authRoutes");
+
 app.use("/api", exchangeRoutes);
+app.use("/api/auth", authRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

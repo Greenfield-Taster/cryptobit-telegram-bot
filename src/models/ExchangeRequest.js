@@ -1,4 +1,3 @@
-// models/ExchangeRequest.js
 const mongoose = require("mongoose");
 
 const exchangeRequestSchema = new mongoose.Schema({
