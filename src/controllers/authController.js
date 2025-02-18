@@ -113,3 +113,37 @@ exports.authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+exports.getUserById = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const user = await User.findById(userId).select(
+      "-password -resetPasswordToken -resetPasswordExpires"
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Пользователь не найден",
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Ошибка при получении пользователя:", error);
+    res.status(500).json({
+      success: false,
+      message: "Ошибка при получении данных пользователя",
+    });
+  }
+};
