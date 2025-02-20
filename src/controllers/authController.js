@@ -2,6 +2,20 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const User = require("../models/User");
 
+const generateNumericNickname = async () => {
+  let nickname = "";
+  for (let i = 0; i < 5; i++) {
+    nickname += Math.floor(Math.random() * 10);
+  }
+
+  const existingUser = await User.findOne({ nickname });
+  if (existingUser) {
+    return generateNumericNickname();
+  }
+
+  return nickname;
+};
+
 exports.register = async (req, res) => {
   try {
     const { email, password, name, phone } = req.body;
@@ -14,6 +28,7 @@ exports.register = async (req, res) => {
       });
     }
 
+    const nickname = await generateNumericNickname();
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = new User({
@@ -21,6 +36,7 @@ exports.register = async (req, res) => {
       password: hashedPassword,
       name,
       phone,
+      nickname,
     });
 
     await user.save();
@@ -37,6 +53,8 @@ exports.register = async (req, res) => {
         id: user._id,
         email: user.email,
         name: user.name,
+        phone: user.phone,
+        nickname: user.nickname,
       },
     });
   } catch (error) {
@@ -80,6 +98,8 @@ exports.login = async (req, res) => {
         id: user._id,
         email: user.email,
         name: user.name,
+        phone: user.phone,
+        nickname: user.nickname,
       },
     });
   } catch (error) {
@@ -136,6 +156,7 @@ exports.getUserById = async (req, res) => {
         email: user.email,
         name: user.name,
         phone: user.phone,
+        nickname: user.nickname,
         createdAt: user.createdAt,
       },
     });
@@ -144,6 +165,36 @@ exports.getUserById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Ошибка при получении данных пользователя",
+    });
+  }
+};
+
+exports.getUserOrders = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Пользователь не найден",
+      });
+    }
+
+    const ExchangeRequest = require("../models/ExchangeRequest");
+    const orders = await ExchangeRequest.find({ userId }).sort({
+      createdAt: -1,
+    });
+
+    res.json({
+      success: true,
+      data: orders,
+    });
+  } catch (error) {
+    console.error("Ошибка при получении заказов пользователя:", error);
+    res.status(500).json({
+      success: false,
+      message: "Ошибка при получении заказов пользователя",
     });
   }
 };

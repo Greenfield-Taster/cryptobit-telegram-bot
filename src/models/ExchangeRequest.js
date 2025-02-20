@@ -9,7 +9,6 @@ const exchangeRequestSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-
   amount: {
     type: Number,
     required: true,
@@ -18,7 +17,6 @@ const exchangeRequestSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-
   senderWallet: {
     type: String,
     required: true,
@@ -27,16 +25,19 @@ const exchangeRequestSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-
   orderId: {
     type: String,
     required: true,
   },
-  saveToWallet: {
+  saveFromWallet: {
     type: Boolean,
-    default: false,
+    default: true,
   },
-
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
   telegramMessageId: {
     type: Number,
   },
@@ -47,7 +48,6 @@ const exchangeRequestSchema = new mongoose.Schema({
   telegramSentAt: {
     type: Date,
   },
-
   createdAt: {
     type: Date,
     default: Date.now,

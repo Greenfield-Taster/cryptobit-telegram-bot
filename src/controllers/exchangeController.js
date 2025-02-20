@@ -1,5 +1,6 @@
 const TelegramBot = require("node-telegram-bot-api");
 const ExchangeRequest = require("../models/ExchangeRequest");
+const User = require("../models/User");
 
 let bot;
 try {
@@ -39,6 +40,15 @@ exports.createExchangeRequest = async (req, res) => {
   try {
     console.log("Получены данные формы:", req.body);
 
+    const user = await User.findById(req.user.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Пользователь не найден",
+      });
+    }
+
     exchangeRequest = new ExchangeRequest({
       fromCrypto: req.body.fromCrypto,
       toCrypto: req.body.toCrypto,
@@ -48,6 +58,7 @@ exports.createExchangeRequest = async (req, res) => {
       recipientWallet: req.body.recipientWallet,
       saveFromWallet: Boolean(req.body.saveFromWallet),
       orderId: req.body.orderId,
+      userId: req.user.userId,
     });
 
     await exchangeRequest.save();
@@ -55,6 +66,8 @@ exports.createExchangeRequest = async (req, res) => {
 
     const message = `
 <b>🔄 Новая заявка на обмен #${exchangeRequest.orderId}</b>
+
+👤 <b>Пользователь:</b> ${user.nickname} 
 
 📤 <b>Отправляет:</b> ${exchangeRequest.fromCrypto}
 📥 <b>Получает:</b> ${exchangeRequest.toCrypto}
@@ -64,9 +77,8 @@ exports.createExchangeRequest = async (req, res) => {
 🔹 <b>Кошелек отправителя:</b> 
 <code>${exchangeRequest.senderWallet}</code>
 
-✅ Сохранить кошельки: ${exchangeRequest.saveFromWallet ? "✓" : "✗"} / ${
-      exchangeRequest.saveToWallet ? "✓" : "✗"
-    }
+✅ Сохранить кошельки: ${exchangeRequest.saveFromWallet ? "✓" : "✗"}
+
 ⏰ <b>Время:</b> ${new Date().toLocaleString()}
 `;
 
@@ -101,21 +113,55 @@ exports.createExchangeRequest = async (req, res) => {
   }
 };
 
-exports.getAllRequests = async (req, res) => {
+exports.getRequestById = async (req, res) => {
   try {
-    const requests = await ExchangeRequest.find()
-      .sort({ createdAt: -1 })
-      .limit(100);
+    const requestId = req.params.id;
+    const userId = req.user.userId;
+
+    const request = await ExchangeRequest.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Заказ не найден",
+      });
+    }
+
+    if (request.userId.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "У вас нет доступа к этому заказу",
+      });
+    }
 
     res.json({
       success: true,
-      data: requests,
+      data: request,
     });
   } catch (error) {
-    console.error("Ошибка при получении заявок:", error);
+    console.error("Ошибка при получении данных заказа:", error);
     res.status(500).json({
       success: false,
-      message: "Ошибка при получении заявок",
+      message: "Ошибка при получении данных заказа",
     });
   }
 };
+
+// exports.getAllRequests = async (req, res) => {
+//   try {
+//     const requests = await ExchangeRequest.find()
+//       .sort({ createdAt: -1 })
+//       .limit(100);
+
+//     res.json({
+//       success: true,
+//       data: requests,
+//     });
+//   } catch (error) {
+//     console.error("Ошибка при получении заявок:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Ошибка при получении заявок",
+//     });
+//   }
+// };

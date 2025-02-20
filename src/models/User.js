@@ -22,6 +22,11 @@ const userSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  nickname: {
+    type: String,
+    unique: true,
+    index: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
