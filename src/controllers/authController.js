@@ -31,14 +31,18 @@ exports.register = async (req, res) => {
     const nickname = await generateNumericNickname();
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = new User({
+    const userData = new User({
       email,
       password: hashedPassword,
       name,
-      phone,
       nickname,
     });
 
+    if (phone) {
+      userData.phone = phone;
+    }
+
+    const user = new User(userData);
     await user.save();
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
@@ -53,7 +57,7 @@ exports.register = async (req, res) => {
         id: user._id,
         email: user.email,
         name: user.name,
-        phone: user.phone,
+        phone: user.phone || "",
         nickname: user.nickname,
       },
     });

@@ -52,6 +52,19 @@ const exchangeRequestSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  status: {
+    type: String,
+    enum: ["pending", "processing", "completed", "failed"],
+    default: "pending",
+  },
+  adminConfirmed: {
+    type: Boolean,
+    default: false,
+  },
+  completedAt: {
+    type: Date,
+    default: null,
+  },
 });
 
 module.exports = mongoose.model("exchange_requests", exchangeRequestSchema);

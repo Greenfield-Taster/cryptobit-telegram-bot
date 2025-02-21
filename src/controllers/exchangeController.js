@@ -11,29 +11,124 @@ try {
     throw new Error("TELEGRAM_CHAT_ID не установлен в .env");
   }
 
-  bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: false });
+  bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
   console.log("Telegram бот успешно инициализирован");
 } catch (error) {
   console.error("Ошибка инициализации бота:", error);
 }
 
-const sendToTelegram = async (message) => {
+const sendToTelegram = async (message, orderId) => {
   if (!bot) {
+    console.error("Статус бота:", bot);
     throw new Error("Telegram бот не инициализирован");
   }
 
   try {
+    console.log("Попытка отправки сообщения в Telegram");
+    console.log("Chat ID:", process.env.TELEGRAM_CHAT_ID);
+    console.log("OrderId для кнопки:", orderId);
+
+    const keyboard = {
+      inline_keyboard: [
+        [
+          {
+            text: "✅ Подтвердить оплату",
+            callback_data: `confirm_payment:${orderId}`,
+          },
+        ],
+      ],
+    };
+
     const sentMessage = await bot.sendMessage(
       process.env.TELEGRAM_CHAT_ID,
       message,
-      { parse_mode: "HTML" }
+      {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      }
     );
+
+    console.log("Сообщение успешно отправлено:", sentMessage);
     return sentMessage;
   } catch (error) {
-    console.error("Ошибка отправки в Telegram:", error);
-    throw new Error("Не удалось отправить сообщение в Telegram");
+    console.error("Детали ошибки отправки в Telegram:", {
+      error: error.message,
+      code: error.code,
+      description: error.description || "No description",
+    });
+    throw new Error(
+      `Не удалось отправить сообщение в Telegram: ${error.message}`
+    );
   }
 };
+
+bot.on("callback_query", async (callbackQuery) => {
+  console.log("Получен callback_query:", callbackQuery);
+  const data = callbackQuery.data;
+  const messageId = callbackQuery.message.message_id;
+
+  if (data.startsWith("confirm_payment:")) {
+    console.log("Обработка подтверждения платежа");
+    const orderId = data.split(":")[1];
+    try {
+      console.log("Поиск заказа с orderId:", orderId);
+
+      const exchangeRequest = await ExchangeRequest.findOneAndUpdate(
+        { orderId: orderId },
+        {
+          $set: {
+            status: "completed",
+            adminConfirmed: true,
+            completedAt: new Date(),
+          },
+        },
+        { new: true }
+      );
+
+      console.log("Результат обновления:", exchangeRequest);
+
+      if (exchangeRequest) {
+        const updatedMessage =
+          callbackQuery.message.text + "\n\n✅ Статус: Оплачено";
+
+        await bot.editMessageText(updatedMessage, {
+          chat_id: process.env.TELEGRAM_CHAT_ID,
+          message_id: messageId,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "✅ Оплата подтверждена",
+                  callback_data: "payment_confirmed",
+                },
+              ],
+            ],
+          },
+        });
+
+        console.log("Сообщение обновлено");
+
+        await bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Оплата успешно подтверждена",
+          show_alert: true,
+        });
+      } else {
+        console.log("Заказ не найден");
+        await bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Ошибка: заказ не найден",
+          show_alert: true,
+        });
+      }
+    } catch (error) {
+      console.error("Ошибка при обновлении статуса:", error);
+      await bot.answerCallbackQuery(callbackQuery.id, {
+        text: "Ошибка при обновлении статуса",
+        show_alert: true,
+      });
+    }
+  }
+});
 
 exports.createExchangeRequest = async (req, res) => {
   let exchangeRequest;
@@ -82,7 +177,7 @@ exports.createExchangeRequest = async (req, res) => {
 ⏰ <b>Время:</b> ${new Date().toLocaleString()}
 `;
 
-    const sentMessage = await sendToTelegram(message);
+    const sentMessage = await sendToTelegram(message, exchangeRequest.orderId);
 
     exchangeRequest.telegramMessageId = sentMessage.message_id;
     exchangeRequest.sentToTelegram = true;
