@@ -241,22 +241,3 @@ exports.getRequestById = async (req, res) => {
     });
   }
 };
-
-// exports.getAllRequests = async (req, res) => {
-//   try {
-//     const requests = await ExchangeRequest.find()
-//       .sort({ createdAt: -1 })
-//       .limit(100);
-
-//     res.json({
-//       success: true,
-//       data: requests,
-//     });
-//   } catch (error) {
-//     console.error("Ошибка при получении заявок:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Ошибка при получении заявок",
-//     });
-//   }
-// };

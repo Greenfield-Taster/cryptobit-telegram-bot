@@ -8,6 +8,5 @@ const { authenticateToken } = require("../controllers/authController");
 
 router.post("/send-form", authenticateToken, createExchangeRequest);
 router.get("/request/:id", authenticateToken, getRequestById);
-// router.get("/requests", authenticateToken, getAllRequests);
 
 module.exports = router;
