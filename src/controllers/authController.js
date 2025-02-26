@@ -18,7 +18,7 @@ const generateNumericNickname = async () => {
 
 exports.register = async (req, res) => {
   try {
-    const { email, password, name, phone } = req.body;
+    const { email, password, name, phone, role } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -36,6 +36,7 @@ exports.register = async (req, res) => {
       password: hashedPassword,
       name,
       nickname,
+      role,
     });
 
     if (phone) {
@@ -59,6 +60,7 @@ exports.register = async (req, res) => {
         name: user.name,
         phone: user.phone || "",
         nickname: user.nickname,
+        role: user.role || "user",
       },
     });
   } catch (error) {
@@ -104,6 +106,7 @@ exports.login = async (req, res) => {
         name: user.name,
         phone: user.phone,
         nickname: user.nickname,
+        role: user.role,
       },
     });
   } catch (error) {
@@ -111,6 +114,64 @@ exports.login = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Ошибка при входе в систему",
+    });
+  }
+};
+
+exports.refreshToken = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Токен не предоставлен",
+      });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        message: "Недействительный или истекший токен",
+        expired: true,
+      });
+    }
+
+    const userId = decoded.userId;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Пользователь не найден",
+      });
+    }
+
+    const newToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "24h",
+    });
+
+    res.json({
+      success: true,
+      message: "Токен успешно обновлен",
+      token: newToken,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        nickname: user.nickname,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Ошибка при обновлении токена:", error);
+    res.status(500).json({
+      success: false,
+      message: "Ошибка при обновлении токена",
     });
   }
 };
@@ -123,14 +184,19 @@ exports.authenticateToken = (req, res, next) => {
     return res.status(401).json({
       success: false,
       message: "Доступ запрещен. Токен не предоставлен",
+      expired: false,
     });
   }
 
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) {
+      const isExpired = err.name === "TokenExpiredError";
       return res.status(403).json({
         success: false,
-        message: "Недействительный токен",
+        message: isExpired
+          ? "Срок действия токена истек"
+          : "Недействительный токен",
+        expired: isExpired,
       });
     }
     req.user = user;
@@ -162,6 +228,7 @@ exports.getUserById = async (req, res) => {
         phone: user.phone,
         nickname: user.nickname,
         createdAt: user.createdAt,
+        role: user.role,
       },
     });
   } catch (error) {

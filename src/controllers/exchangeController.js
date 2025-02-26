@@ -3,24 +3,36 @@ const ExchangeRequest = require("../models/ExchangeRequest");
 const User = require("../models/User");
 
 let bot;
-try {
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    throw new Error("TELEGRAM_BOT_TOKEN не установлен в .env");
-  }
-  if (!process.env.TELEGRAM_CHAT_ID) {
-    throw new Error("TELEGRAM_CHAT_ID не установлен в .env");
-  }
 
-  bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
-  console.log("Telegram бот успешно инициализирован");
-} catch (error) {
-  console.error("Ошибка инициализации бота:", error);
-}
+const initializeBot = async () => {
+  try {
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      throw new Error("TELEGRAM_BOT_TOKEN не установлен в .env");
+    }
+    if (!process.env.TELEGRAM_CHAT_ID) {
+      throw new Error("TELEGRAM_CHAT_ID не установлен в .env");
+    }
+
+    const webhookUrl = process.env.WEBHOOK_URL;
+
+    bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: false });
+
+    const webhookResult = await bot.setWebHook(webhookUrl);
+    console.log("Webhook установлен:", webhookResult);
+
+    console.log("Telegram бот успешно инициализирован с webhook");
+    return true;
+  } catch (error) {
+    console.error("Ошибка инициализации бота:", error);
+    return false;
+  }
+};
+
+initializeBot();
 
 const sendToTelegram = async (message, orderId) => {
-  if (!bot) {
-    console.error("Статус бота:", bot);
-    throw new Error("Telegram бот не инициализирован");
+  if (!bot && !initializeBot()) {
+    throw new Error("Telegram бот не может быть инициализирован");
   }
 
   try {
@@ -39,14 +51,40 @@ const sendToTelegram = async (message, orderId) => {
       ],
     };
 
-    const sentMessage = await bot.sendMessage(
-      process.env.TELEGRAM_CHAT_ID,
-      message,
-      {
-        parse_mode: "HTML",
-        reply_markup: keyboard,
+    let retries = 3;
+    let sentMessage = null;
+
+    while (retries > 0 && !sentMessage) {
+      try {
+        sentMessage = await bot.sendMessage(
+          process.env.TELEGRAM_CHAT_ID,
+          message,
+          {
+            parse_mode: "HTML",
+            reply_markup: keyboard,
+          }
+        );
+      } catch (err) {
+        console.error(`Попытка ${4 - retries} не удалась:`, err.message);
+        retries--;
+
+        if (
+          err.code === "ETELEGRAM" &&
+          err.response &&
+          (err.response.statusCode === 401 || err.response.statusCode === 403)
+        ) {
+          console.log("Попытка переинициализации бота...");
+          bot = null;
+          initializeBot();
+        }
+
+        if (retries > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } else {
+          throw err;
+        }
       }
-    );
+    }
 
     console.log("Сообщение успешно отправлено:", sentMessage);
     return sentMessage;
@@ -62,8 +100,8 @@ const sendToTelegram = async (message, orderId) => {
   }
 };
 
-bot.on("callback_query", async (callbackQuery) => {
-  console.log("Получен callback_query:", callbackQuery);
+exports.processCallbackQuery = async (callbackQuery) => {
+  console.log("Обработка callback_query:", callbackQuery);
   const data = callbackQuery.data;
   const messageId = callbackQuery.message.message_id;
 
@@ -109,26 +147,92 @@ bot.on("callback_query", async (callbackQuery) => {
 
         console.log("Сообщение обновлено");
 
-        await bot.answerCallbackQuery(callbackQuery.id, {
-          text: "Оплата успешно подтверждена",
-          show_alert: true,
-        });
+        return {
+          success: true,
+          message: "Оплата успешно подтверждена",
+        };
       } else {
         console.log("Заказ не найден");
-        await bot.answerCallbackQuery(callbackQuery.id, {
-          text: "Ошибка: заказ не найден",
-          show_alert: true,
-        });
+        return {
+          success: false,
+          message: "Ошибка: заказ не найден",
+        };
       }
     } catch (error) {
       console.error("Ошибка при обновлении статуса:", error);
-      await bot.answerCallbackQuery(callbackQuery.id, {
-        text: "Ошибка при обновлении статуса",
-        show_alert: true,
-      });
+      return {
+        success: false,
+        message: "Ошибка при обновлении статуса: " + error.message,
+      };
     }
   }
-});
+
+  return {
+    success: false,
+    message: "Неизвестный callback_data",
+  };
+};
+
+// Экспортируем функцию для webhook
+exports.setupWebhook = async (req, res) => {
+  try {
+    // Убедимся, что есть доступ к боту
+    if (!bot && !initializeBot()) {
+      return res.status(500).json({
+        success: false,
+        message: "Telegram бот не может быть инициализирован",
+      });
+    }
+
+    // URL для webhook должен быть публичным и доступным из интернета
+    const webhookUrl = process.env.WEBHOOK_URL;
+
+    if (!webhookUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "URL для webhook не указан",
+      });
+    }
+
+    // Устанавливаем webhook
+    const result = await bot.setWebHook(webhookUrl);
+
+    res.json({
+      success: true,
+      message: "Webhook успешно установлен",
+      result,
+    });
+  } catch (error) {
+    console.error("Ошибка при установке webhook:", error);
+    res.status(500).json({
+      success: false,
+      message: "Ошибка при установке webhook: " + error.message,
+    });
+  }
+};
+
+// Обработчик webhook от Telegram
+exports.handleWebhook = async (req, res) => {
+  try {
+    const update = req.body;
+
+    // Проверяем, является ли это callback_query
+    if (update && update.callback_query) {
+      const result = await this.processCallbackQuery(update.callback_query);
+      return res.json(result);
+    }
+
+    // Другие типы обновлений можно обрабатывать здесь
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Ошибка при обработке webhook:", error);
+    res.status(500).json({
+      success: false,
+      message: "Ошибка при обработке webhook: " + error.message,
+    });
+  }
+};
 
 exports.createExchangeRequest = async (req, res) => {
   let exchangeRequest;
@@ -193,6 +297,7 @@ exports.createExchangeRequest = async (req, res) => {
     console.error("Ошибка при обработке заявки:", error);
 
     if (error.message.includes("Telegram") && exchangeRequest?._id) {
+      // Если заявка сохранена, но возникла ошибка при отправке в Telegram
       res.status(500).json({
         success: false,
         message:
