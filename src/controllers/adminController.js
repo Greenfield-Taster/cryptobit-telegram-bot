@@ -357,5 +357,3 @@ exports.getExchangeStatistics = async (req, res) => {
     });
   }
 };
-
-exports.module.exports = exports;
