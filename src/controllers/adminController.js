@@ -1,8 +1,6 @@
 const User = require("../models/User");
 const ExchangeRequest = require("../models/ExchangeRequest");
-const Chat = require("../models/Chat");
 
-// Получение всех пользователей
 exports.getUsers = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -48,7 +46,6 @@ exports.getUsers = async (req, res) => {
   }
 };
 
-// Получение детальной информации о пользователе
 exports.getUserById = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -87,7 +84,6 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-// Обновление пользователя
 exports.updateUser = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -135,12 +131,10 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-// Удаление пользователя
 exports.deleteUser = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    // Проверяем, не пытается ли админ удалить сам себя
     if (userId === req.user.userId) {
       return res.status(400).json({
         success: false,
@@ -156,10 +150,6 @@ exports.deleteUser = async (req, res) => {
       });
     }
 
-    // Можно также удалить связанные с пользователем данные
-    // await ExchangeRequest.deleteMany({ userId });
-    // await Chat.deleteMany({ userId });
-
     res.json({
       success: true,
       message: "Пользователь успешно удален",
@@ -173,7 +163,6 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-// Получение всех заявок на обмен
 exports.getAllExchangeRequests = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -216,7 +205,6 @@ exports.getAllExchangeRequests = async (req, res) => {
   }
 };
 
-// Получение детальной информации о заявке
 exports.getExchangeRequestById = async (req, res) => {
   try {
     const requestId = req.params.id;
@@ -232,15 +220,10 @@ exports.getExchangeRequestById = async (req, res) => {
       });
     }
 
-    // Проверяем, есть ли чат для этой заявки
-    const chat = await Chat.findOne({ orderId: exchangeRequest.orderId });
-
     res.json({
       success: true,
       data: {
         request: exchangeRequest,
-        hasChatSupport: !!chat,
-        chatId: chat ? chat._id : null,
       },
     });
   } catch (error) {
@@ -252,7 +235,6 @@ exports.getExchangeRequestById = async (req, res) => {
   }
 };
 
-// Обновление статуса заявки
 exports.updateExchangeRequestStatus = async (req, res) => {
   try {
     const requestId = req.params.id;
@@ -306,7 +288,6 @@ exports.updateExchangeRequestStatus = async (req, res) => {
   }
 };
 
-// Получение статистики по заявкам
 exports.getExchangeStatistics = async (req, res) => {
   try {
     // Общее количество заявок
@@ -377,109 +358,4 @@ exports.getExchangeStatistics = async (req, res) => {
   }
 };
 
-// Создание нового чата поддержки для заявки
-exports.createSupportChat = async (req, res) => {
-  try {
-    const { orderId, userId, initialMessage } = req.body;
-
-    // Проверяем, существует ли заявка
-    const exchangeRequest = await ExchangeRequest.findOne({ orderId });
-    if (!exchangeRequest) {
-      return res.status(404).json({
-        success: false,
-        message: "Заявка не найдена",
-      });
-    }
-
-    // Проверяем, существует ли пользователь
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "Пользователь не найден",
-      });
-    }
-
-    // Проверяем, существует ли уже чат для этой заявки
-    const existingChat = await Chat.findOne({ orderId });
-    if (existingChat) {
-      return res.status(400).json({
-        success: false,
-        message: "Чат для этой заявки уже существует",
-        chatId: existingChat._id,
-      });
-    }
-
-    // Создаем новый чат
-    const newChat = new Chat({
-      orderId,
-      userId,
-      status: "active",
-      messages: [],
-    });
-
-    // Если есть начальное сообщение, добавляем его
-    if (initialMessage) {
-      newChat.messages.push({
-        sender: "admin",
-        content: initialMessage,
-        timestamp: new Date(),
-        read: false,
-      });
-    }
-
-    await newChat.save();
-
-    res.status(201).json({
-      success: true,
-      data: newChat,
-      message: "Чат поддержки успешно создан",
-    });
-  } catch (error) {
-    console.error("Ошибка при создании чата поддержки:", error);
-    res.status(500).json({
-      success: false,
-      message: "Ошибка при создании чата поддержки",
-    });
-  }
-};
-
-exports.updateUserSchema = async (req, res) => {
-  try {
-    const { field, defaultValue } = req.body;
-
-    // Это административная функция для обновления схемы
-    // Будьте осторожны при использовании!
-
-    // Пример обновления всех пользователей добавлением нового поля
-    // или обновлением существующего
-    if (!field) {
-      return res.status(400).json({
-        success: false,
-        message: "Не указано поле для обновления",
-      });
-    }
-
-    const updateObj = {};
-    updateObj[field] = defaultValue !== undefined ? defaultValue : "";
-
-    const result = await User.updateMany(
-      { [field]: { $exists: false } },
-      { $set: updateObj }
-    );
-
-    res.json({
-      success: true,
-      message: `Схема пользователей обновлена. Затронуто ${result.modifiedCount} записей.`,
-      result,
-    });
-  } catch (error) {
-    console.error("Ошибка при обновлении схемы пользователей:", error);
-    res.status(500).json({
-      success: false,
-      message: "Ошибка при обновлении схемы пользователей",
-    });
-  }
-};
-
-module.exports = exports;
+exports.module.exports = exports;
