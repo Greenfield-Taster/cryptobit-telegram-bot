@@ -1,6 +1,7 @@
 const TelegramBot = require("node-telegram-bot-api");
 const ExchangeRequest = require("../models/ExchangeRequest");
 const User = require("../models/User");
+const PromoCode = require("../models/PromoCode");
 
 let bot;
 
@@ -248,20 +249,64 @@ exports.createExchangeRequest = async (req, res) => {
       });
     }
 
+    let discount = 0;
+    let usedPromoCode = null;
+
+    if (req.body.promoCode) {
+      const promoCode = await PromoCode.findOne({
+        code: req.body.promoCode.toUpperCase(),
+        userId: req.user.userId,
+        isUsed: false,
+        expiresAt: { $gt: new Date() },
+      });
+
+      if (!promoCode) {
+        return res.status(404).json({
+          success: false,
+          message: "Промокод не найден или уже использован",
+        });
+      }
+
+      discount = promoCode.discount;
+      usedPromoCode = promoCode;
+    }
+
+    let amount = parseFloat(req.body.amount);
+    let calculatedAmount = parseFloat(req.body.calculatedAmount);
+
+    if (discount > 0) {
+      calculatedAmount = calculatedAmount * (1 + discount / 100);
+    }
+
     exchangeRequest = new ExchangeRequest({
       fromCrypto: req.body.fromCrypto,
       toCrypto: req.body.toCrypto,
-      amount: parseFloat(req.body.amount),
-      calculatedAmount: parseFloat(req.body.calculatedAmount),
+      amount: amount,
+      calculatedAmount: calculatedAmount,
       senderWallet: req.body.senderWallet,
       recipientWallet: req.body.recipientWallet,
       saveFromWallet: Boolean(req.body.saveFromWallet),
       orderId: req.body.orderId,
       userId: req.user.userId,
+      promoCodeApplied: discount > 0 ? true : false,
+      promoCodeDiscount: discount,
+      promoCodeId: usedPromoCode ? usedPromoCode._id : null,
     });
 
     await exchangeRequest.save();
     console.log("Заявка сохранена с ID:", exchangeRequest._id);
+
+    if (usedPromoCode) {
+      usedPromoCode.isUsed = true;
+      usedPromoCode.usedAt = new Date();
+      usedPromoCode.usedInOrderId = exchangeRequest.orderId;
+      await usedPromoCode.save();
+    }
+
+    const promoCodeInfo =
+      discount > 0
+        ? `\n💎 <b>Промокод:</b> ${req.body.promoCode} (${discount}%)`
+        : "";
 
     const message = `
 <b>🔄 Новая заявка на обмен #${exchangeRequest.orderId}</b>
@@ -271,7 +316,7 @@ exports.createExchangeRequest = async (req, res) => {
 📤 <b>Отправляет:</b> ${exchangeRequest.fromCrypto}
 📥 <b>Получает:</b> ${exchangeRequest.toCrypto}
 💰 <b>Сумма:</b> ${exchangeRequest.amount}
-💵 <b>К получению:</b> ${exchangeRequest.calculatedAmount}
+💵 <b>К получению:</b> ${exchangeRequest.calculatedAmount}${promoCodeInfo}
 
 🔹 <b>Кошелек отправителя:</b> 
 <code>${exchangeRequest.senderWallet}</code>
@@ -292,12 +337,12 @@ exports.createExchangeRequest = async (req, res) => {
       success: true,
       message: "Заявка успешно создана и отправлена в Telegram",
       requestId: exchangeRequest._id,
+      promoCodeApplied: discount > 0 ? true : false,
     });
   } catch (error) {
     console.error("Ошибка при обработке заявки:", error);
 
     if (error.message.includes("Telegram") && exchangeRequest?._id) {
-      // Если заявка сохранена, но возникла ошибка при отправке в Telegram
       res.status(500).json({
         success: false,
         message:

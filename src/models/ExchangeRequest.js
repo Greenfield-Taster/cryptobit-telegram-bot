@@ -65,6 +65,19 @@ const exchangeRequestSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  promoCodeApplied: {
+    type: Boolean,
+    default: false,
+  },
+  promoCodeDiscount: {
+    type: Number,
+    default: 0,
+  },
+  promoCodeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PromoCode",
+    default: null,
+  },
 });
 
 module.exports = mongoose.model("exchange_requests", exchangeRequestSchema);

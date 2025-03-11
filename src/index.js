@@ -25,10 +25,12 @@ app.get("/", (req, res) => {
 const exchangeRoutes = require("./routes/exchangeRoutes");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const promoCodeRoutes = require("./routes/promoCodeRoutes");
 
 app.use("/api", exchangeRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/promocodes", promoCodeRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
