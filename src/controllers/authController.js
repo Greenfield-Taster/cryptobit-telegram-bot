@@ -61,6 +61,7 @@ exports.register = async (req, res) => {
         phone: user.phone || "",
         nickname: user.nickname,
         role: user.role || "user",
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -107,6 +108,7 @@ exports.login = async (req, res) => {
         phone: user.phone,
         nickname: user.nickname,
         role: user.role,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -165,6 +167,7 @@ exports.refreshToken = async (req, res) => {
         phone: user.phone,
         nickname: user.nickname,
         role: user.role,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
