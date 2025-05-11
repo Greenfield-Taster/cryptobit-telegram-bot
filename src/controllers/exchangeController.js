@@ -249,8 +249,8 @@ exports.createExchangeRequest = async (req, res) => {
       });
     }
 
-    let discount = 0;
     let usedPromoCode = null;
+    let promoCodeDetails = null;
 
     if (req.body.promoCode) {
       const promoCode = await PromoCode.findOne({
@@ -267,16 +267,16 @@ exports.createExchangeRequest = async (req, res) => {
         });
       }
 
-      discount = promoCode.discount;
       usedPromoCode = promoCode;
+      promoCodeDetails = {
+        id: promoCode._id,
+        discount: promoCode.discount,
+        applied: true,
+      };
     }
 
-    let amount = parseFloat(req.body.amount);
-    let calculatedAmount = parseFloat(req.body.calculatedAmount);
-
-    if (discount > 0) {
-      calculatedAmount = calculatedAmount * (1 + discount / 100);
-    }
+    const amount = parseFloat(req.body.amount);
+    const calculatedAmount = parseFloat(req.body.calculatedAmount);
 
     exchangeRequest = new ExchangeRequest({
       fromCrypto: req.body.fromCrypto,
@@ -288,9 +288,9 @@ exports.createExchangeRequest = async (req, res) => {
       saveFromWallet: Boolean(req.body.saveFromWallet),
       orderId: req.body.orderId,
       userId: req.user.userId,
-      promoCodeApplied: discount > 0 ? true : false,
-      promoCodeDiscount: discount,
-      promoCodeId: usedPromoCode ? usedPromoCode._id : null,
+      promoCodeApplied: promoCodeDetails ? promoCodeDetails.applied : false,
+      promoCodeDiscount: promoCodeDetails ? promoCodeDetails.discount : 0,
+      promoCodeId: promoCodeDetails ? promoCodeDetails.id : null,
     });
 
     await exchangeRequest.save();
@@ -303,10 +303,9 @@ exports.createExchangeRequest = async (req, res) => {
       await usedPromoCode.save();
     }
 
-    const promoCodeInfo =
-      discount > 0
-        ? `\n💎 <b>Промокод:</b> ${req.body.promoCode} (${discount}%)`
-        : "";
+    const promoCodeInfo = promoCodeDetails
+      ? `\n💎 <b>Промокод:</b> ${req.body.promoCode} (${promoCodeDetails.discount}%)`
+      : "";
 
     const message = `
 <b>🔄 Новая заявка на обмен #${exchangeRequest.orderId}</b>
@@ -337,7 +336,7 @@ exports.createExchangeRequest = async (req, res) => {
       success: true,
       message: "Заявка успешно создана и отправлена в Telegram",
       requestId: exchangeRequest._id,
-      promoCodeApplied: discount > 0 ? true : false,
+      promoCodeApplied: promoCodeDetails ? promoCodeDetails.applied : false,
     });
   } catch (error) {
     console.error("Ошибка при обработке заявки:", error);
