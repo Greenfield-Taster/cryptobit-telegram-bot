@@ -32,7 +32,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/promocodes", promoCodeRoutes);
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT2 || 8080;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
